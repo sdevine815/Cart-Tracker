@@ -304,11 +304,19 @@
 
     /* Error / loading states */
     .state-msg {
-      font-size: 30px;
+      font-size: 13px;
       color: var(--text-2);
       text-align: center;
       padding: 32px 16px;
+      font-style: italic;
     }
+    .emoji-state-msg {
+      font-size: 30px;
+      color: var(--text-2);
+      text-align: center;
+      padding: 32px 4px;
+    }
+
 
     #tip {
       font-family: 'Playfair Display', serif;
@@ -548,7 +556,7 @@
     function renderSidebar() {
       const list = document.getElementById('cart-list');
       if (!carts.length) {
-        list.innerHTML = '<p class="state-msg">😴</p>';
+        list.innerHTML = '<p class="state-msg">No active carts found</p><p class="emoji-state-msg">😴</>';
         return;
       }
 
