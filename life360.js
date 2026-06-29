@@ -1,7 +1,7 @@
 import https from 'node:https';
 
 const TOKEN  = process.env.LIFE360_TOKEN;
-const CIRCLE = process.env.LIFE360_CIRCLE ?? 'Mission Test';
+const CIRCLE = process.env.LIFE360_CIRCLE ?? 'Mission Coffee Carts';
 
 if (!TOKEN) throw new Error('LIFE360_TOKEN env var is required');
 
