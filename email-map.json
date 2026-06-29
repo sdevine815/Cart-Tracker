@@ -2,5 +2,6 @@
   "_comment": "Maps a person's Life360 login email to their Square email when they differ. Only add entries where the two emails are different.",
   "life360email@example.com": "squareemail@example.com",
   "Kidshoegid@gmail.com": "camrynespada07@gmail.com",
-  "sdevine815@gmail.com": "sdevine815@gmail.com"
+  "sdevine815@gmail.com": "sdevine815@gmail.com",
+  "ademos906@gmail.com": "alexdemos27@gmail.com"
 }
