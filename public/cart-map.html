@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cart Tracker</title>
+  <!-- Host this file on the same server as your API, then point the
+       Wix embed at its URL via "Website address" (not "Code"). -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:     #1b2a4a;
+      --teal:     #56b9b4;
+      --sand:     #f0ebe0;
+      --sand-2:   #e8e0d0;
+      --white:    #ffffff;
+      --pin-red:  #e85d4a;
+      --green:    #2fb97a;
+      --amber:    #f59e0b;
+      --muted:    #9ca3af;
+      --badge-bg: #ddeef5;
+      --text-1:   #1b2a4a;
+      --text-2:   #6b7280;
+    }
+
+    html, body { height: 100%; font-family: 'Inter', sans-serif; background: var(--sand); }
+
+    #app {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── MAP ─────────────────────────────────────── */
+    #map-wrap {
+      flex: 1;
+      position: relative;
+      min-width: 0;
+    }
+
+    #map { width: 100%; height: 100%; }
+
+    /* Leaflet popup */
+    .cart-popup .leaflet-popup-content-wrapper {
+      background: var(--white);
+      border-radius: 14px;
+      box-shadow: 0 8px 32px rgba(27,42,74,0.18);
+      padding: 0;
+      border: none;
+    }
+    .cart-popup .leaflet-popup-content { margin: 0; }
+    .cart-popup .leaflet-popup-tip-container { margin-top: -1px; }
+    .cart-popup .leaflet-popup-tip { background: var(--white); box-shadow: none; }
+
+    .popup-inner {
+      padding: 14px 18px 16px;
+      min-width: 200px;
+    }
+    .popup-name {
+      font-family: 'Playfair Display', serif;
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--navy);
+      margin-bottom: 5px;
+    }
+    .popup-dist {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--teal);
+      margin-bottom: 8px;
+    }
+    .popup-status-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+    }
+    .popup-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* Cart marker pin */
+    .cart-pin {
+      width: 40px; height: 40px;
+      background: var(--navy);
+      border-radius: 50% 50% 50% 0;
+      transform: rotate(-45deg);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 14px rgba(27,42,74,0.38);
+      border: 2px solid rgba(255,255,255,0.18);
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .cart-pin.active { background: #2d4473; }
+    .cart-pin-emoji {
+      font-size: 17px;
+      transform: rotate(45deg);
+      line-height: 1;
+      user-select: none;
+    }
+
+    /* User location marker */
+    .user-pin {
+      width: 18px; height: 18px;
+      background: var(--white);
+      border: 3px solid var(--teal);
+      border-radius: 50%;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+      animation: user-pulse 2.2s ease-in-out infinite;
+    }
+    @keyframes user-pulse {
+      0%, 100% { box-shadow: 0 2px 8px rgba(0,0,0,0.18), 0 0 0 0 rgba(86,185,180,0.45); }
+      55%       { box-shadow: 0 2px 8px rgba(0,0,0,0.18), 0 0 0 11px rgba(86,185,180,0); }
+    }
+
+    /* Map legend */
+    #legend {
+      position: absolute;
+      bottom: 28px; left: 16px;
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(6px);
+      border-radius: 10px;
+      padding: 10px 14px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+      z-index: 500;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+    .legend-row {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 12px;
+      color: var(--text-2);
+      font-weight: 500;
+    }
+    .legend-cart-icon {
+      width: 16px; height: 16px;
+      background: var(--navy);
+      border-radius: 50% 50% 50% 0;
+      transform: rotate(-45deg);
+      flex-shrink: 0;
+    }
+    .legend-you-icon {
+      width: 14px; height: 14px;
+      background: var(--white);
+      border: 2.5px solid var(--teal);
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ── SIDEBAR ─────────────────────────────────── */
+    #sidebar {
+      width: 360px;
+      min-width: 320px;
+      background: var(--sand);
+      display: flex;
+      flex-direction: column;
+      border-left: 1px solid var(--sand-2);
+      overflow: hidden;
+    }
+
+    #sidebar-head {
+      padding: 28px 24px 18px;
+      border-bottom: 1px solid var(--sand-2);
+      flex-shrink: 0;
+    }
+    #sidebar-head h1 {
+      font-family: 'Playfair Display', serif;
+      font-weight: 700;
+      font-size: 26px;
+      color: var(--navy);
+      line-height: 1.1;
+      margin-bottom: 7px;
+    }
+    #live-bar {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .live-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--teal);
+      animation: blink 2s ease-in-out infinite;
+      flex-shrink: 0;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.35; }
+    }
+    #updated-ago {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: var(--teal);
+    }
+
+    #cart-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 16px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--sand-2) transparent;
+    }
+
+    /* Cart card */
+    .cart-card {
+      background: var(--white);
+      border-radius: 18px;
+      padding: 16px 18px;
+      cursor: pointer;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+      box-shadow: 0 1px 5px rgba(27,42,74,0.07);
+      border: 1.5px solid transparent;
+    }
+    .cart-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(27,42,74,0.11);
+    }
+    .cart-card.selected {
+      background: var(--navy);
+      border-color: rgba(255,255,255,0.08);
+      box-shadow: 0 6px 24px rgba(27,42,74,0.28);
+    }
+
+    .card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 9px;
+    }
+    .card-name {
+      font-family: 'Playfair Display', serif;
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--navy);
+      line-height: 1.25;
+    }
+    .cart-card.selected .card-name { color: var(--white); }
+
+    .dist-badge {
+      background: var(--badge-bg);
+      color: var(--navy);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 20px;
+      white-space: nowrap;
+      flex-shrink: 0;
+      line-height: 1.4;
+    }
+    .cart-card.selected .dist-badge {
+      background: rgba(255,255,255,0.14);
+      color: var(--white);
+    }
+
+    .card-addr {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--text-2);
+      margin-bottom: 9px;
+      line-height: 1.4;
+    }
+    .card-addr svg { flex-shrink: 0; margin-top: 2px; }
+    .cart-card.selected .card-addr { color: rgba(255,255,255,0.6); }
+
+    .card-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .status-text {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    /* Error / loading states */
+    .state-msg {
+      font-size: 13px;
+      color: var(--text-2);
+      text-align: center;
+      padding: 32px 16px;
+      font-style: italic;
+    }
+
+    #tip {
+      font-family: 'Playfair Display', serif;
+      font-style: italic;
+      font-size: 12px;
+      color: var(--text-2);
+      padding: 14px 20px 20px;
+      line-height: 1.55;
+      flex-shrink: 0;
+      border-top: 1px solid var(--sand-2);
+    }
+    #tip strong { font-style: normal; font-weight: 700; color: var(--navy); }
+
+    /* Leaflet overrides */
+    .leaflet-control-zoom {
+      border: none !important;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.13) !important;
+    }
+    .leaflet-control-zoom a {
+      color: var(--navy) !important;
+      font-weight: 700 !important;
+      border-radius: 8px !important;
+    }
+    .leaflet-control-attribution { font-size: 10px; }
+
+    @media (max-width: 700px) {
+      #app { flex-direction: column; }
+      #sidebar { width: 100%; min-width: 0; height: 50vh; border-left: none; border-top: 1px solid var(--sand-2); }
+      #map-wrap { height: 50vh; flex: none; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="map-wrap">
+      <div id="map"></div>
+      <div id="legend">
+        <div class="legend-row"><span class="legend-cart-icon"></span> Cart (live)</div>
+        <div class="legend-row"><span class="legend-you-icon"></span> You</div>
+      </div>
+    </div>
+
+    <aside id="sidebar">
+      <div id="sidebar-head">
+        <h1>Active Carts</h1>
+        <div id="live-bar">
+          <span class="live-dot"></span>
+          <span id="updated-ago">LIVE</span>
+        </div>
+      </div>
+      <div id="cart-list"><p class="state-msg">Loading carts…</p></div>
+      <p id="tip"><strong>Tip:</strong> tap any cart to highlight it on the map. Walking time is based on a 20-minute mile.</p>
+    </aside>
+  </div>
+
+  <script>
+    /* ════════════ CONFIG ════════════
+       Velo: leave API_URL = "" and push data from your Wix page code:
+         $w('#mapHtml').postMessage({ type: 'carts', carts: [...] });
+         $w('#mapHtml').postMessage({ type: 'me', lat: 39.41, long: -74.36 });
+       Non-Velo with a CORS-enabled API: set API_URL and it polls itself.
+       Set DEMO_IF_IDLE = false once real data is flowing.            */
+    const API_URL      = "/api/cart-locations";  // same-origin path to your tracker API
+    const DEMO_IF_IDLE = false;  // set true only while testing the layout
+    const REFRESH_MS   = 10_000;   // only used when API_URL is set
+    const WALK_MIN_MI  = 20;
+
+    let map, userMarker;
+    let cartMarkers  = new Map(); // id → L.Marker
+    let carts        = [];
+    let userPos      = null;
+    let selectedId   = null;
+    let lastFetch    = null;
+    let tickTimer    = null;
+    let initialFit   = false;
+    let gotData      = false;
+
+    // ── Helpers ────────────────────────────────────────
+
+    function haversine(lat1, lon1, lat2, lon2) {
+      const R  = 3958.8;
+      const φ1 = lat1 * Math.PI / 180, φ2 = lat2 * Math.PI / 180;
+      const Δφ = (lat2 - lat1) * Math.PI / 180;
+      const Δλ = (lon2 - lon1) * Math.PI / 180;
+      const a  = Math.sin(Δφ/2)**2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ/2)**2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    function fmtDist(mi) {
+      if (mi < 0.1) return `${Math.round(mi * 5280)} ft`;
+      return `${mi.toFixed(1)} mi`;
+    }
+
+    function fmtWalk(mi) {
+      const m = Math.round(mi * WALK_MIN_MI);
+      return m < 1 ? '~1 min' : `~${m} min`;
+    }
+
+    function distBadge(mi) {
+      return `${fmtDist(mi)} · ${fmtWalk(mi)}`;
+    }
+
+    function statusFor(updatedAt) {
+      if (!updatedAt) return { label: 'UNKNOWN', color: 'var(--muted)' };
+      const age = (Date.now() - new Date(updatedAt)) / 60_000;
+      if (age < 5)  return { label: 'ACTIVE', color: 'var(--green)' };
+      if (age < 30) return { label: 'IDLE',   color: 'var(--amber)' };
+      return              { label: 'AWAY',    color: 'var(--muted)' };
+    }
+
+    function firstName(n) { return (n || '?').trim().split(' ')[0]; }
+
+    function cartId(c)     { return c.email || c.name; }
+
+    function distTo(cart) {
+      if (!userPos) return null;
+      return haversine(userPos.lat, userPos.lng, cart.coords.lat, cart.coords.long);
+    }
+
+    // ── Map init ───────────────────────────────────────
+
+    function initMap() {
+      map = L.map('map', { zoomControl: false });
+      L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        {
+          attribution: '&copy; <a href="https://www.esri.com">Esri</a>, Maxar, Earthstar Geographics',
+          maxZoom: 19,
+        }
+      ).addTo(map);
+      L.tileLayer(
+        'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png',
+        { subdomains: 'abcd', maxZoom: 19 }
+      ).addTo(map);
+      L.control.zoom({ position: 'bottomright' }).addTo(map);
+      map.setView([39.4101, -74.3646], 13); // Brigantine; auto-fits once carts arrive
+    }
+
+    // ── Markers ────────────────────────────────────────
+
+    function pinIcon(isSelected) {
+      return L.divIcon({
+        className: '',
+        html: `<div class="cart-pin${isSelected ? ' active' : ''}"><span class="cart-pin-emoji">☕</span></div>`,
+        iconSize:   [40, 40],
+        iconAnchor: [20, 40],
+        popupAnchor:[0, -42],
+      });
+    }
+
+    function userIcon() {
+      return L.divIcon({
+        className:  '',
+        html:       '<div class="user-pin"></div>',
+        iconSize:   [18, 18],
+        iconAnchor: [9, 9],
+      });
+    }
+
+    function popupHTML(cart, num) {
+      const dist   = distTo(cart);
+      const status = statusFor(cart.updated);
+      return `
+        <div class="popup-inner">
+          <div class="popup-name">Cart No. ${num} · ${firstName(cart.name)}</div>
+          ${dist != null ? `<div class="popup-dist">${distBadge(dist)} walk</div>` : ''}
+          <div class="popup-status-row">
+            <span class="popup-dot" style="background:${status.color}"></span>
+            <span style="color:${status.color}">${status.label}</span>
+          </div>
+        </div>`;
+    }
+
+    function updateMarkers() {
+      const currentIds = new Set(carts.map(cartId));
+
+      // Remove stale
+      for (const [id, m] of cartMarkers) {
+        if (!currentIds.has(id)) { map.removeLayer(m); cartMarkers.delete(id); }
+      }
+
+      // Add / update
+      carts.forEach((cart, i) => {
+        const id        = cartId(cart);
+        const ll        = [cart.coords.lat, cart.coords.long];
+        const isSelected = selectedId === id;
+
+        if (cartMarkers.has(id)) {
+          const m = cartMarkers.get(id);
+          m.setLatLng(ll);
+          m.setIcon(pinIcon(isSelected));
+          m.getPopup()?.setContent(popupHTML(cart, i + 1));
+        } else {
+          const m = L.marker(ll, { icon: pinIcon(isSelected) })
+            .bindPopup(popupHTML(cart, i + 1), { className: 'cart-popup', maxWidth: 260 })
+            .on('click', () => selectCart(id))
+            .addTo(map);
+          cartMarkers.set(id, m);
+        }
+      });
+    }
+
+    function updateUserMarker(lat, lng) {
+      if (userMarker) {
+        userMarker.setLatLng([lat, lng]);
+      } else {
+        userMarker = L.marker([lat, lng], { icon: userIcon(), zIndexOffset: 1000 }).addTo(map);
+      }
+    }
+
+    function fitAll() {
+      const pts = carts.map(c => [c.coords.lat, c.coords.long]);
+      if (userPos) pts.push([userPos.lat, userPos.lng]);
+      if (pts.length) map.fitBounds(L.latLngBounds(pts), { padding: [60, 60], maxZoom: 16 });
+    }
+
+    // ── Selection ──────────────────────────────────────
+
+    function selectCart(id) {
+      selectedId = selectedId === id ? null : id;
+      updateMarkers();
+      renderSidebar();
+      if (selectedId) {
+        const cart = carts.find(c => cartId(c) === selectedId);
+        if (cart) {
+          map.panTo([cart.coords.lat, cart.coords.long], { animate: true });
+          cartMarkers.get(id)?.openPopup();
+        }
+      } else {
+        map.closePopup();
+      }
+    }
+
+    // ── Sidebar rendering ──────────────────────────────
+
+    function renderSidebar() {
+      const list = document.getElementById('cart-list');
+      if (!carts.length) {
+        list.innerHTML = '<p class="state-msg">No active carts found.</p>';
+        return;
+      }
+
+      list.innerHTML = carts.map((cart, i) => {
+        const id         = cartId(cart);
+        const sel        = selectedId === id;
+        const name       = firstName(cart.name);
+        const dist       = distTo(cart);
+        const status     = statusFor(cart.updated);
+        const addr       = cart.address || '—';
+        const pinFill    = sel ? 'rgba(255,255,255,0.55)' : 'var(--pin-red)';
+
+        return `
+          <div class="cart-card${sel ? ' selected' : ''}" onclick="selectCart('${id}')">
+            <div class="card-top">
+              <div class="card-name">Cart No. ${i + 1} · ${name}</div>
+            </div>
+            <div class="card-addr">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="${pinFill}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+              </svg>
+              <span>${dist != null ? `${fmtDist(dist)} · ${fmtWalk(dist)} walk` : 'Locating…'}</span>
+            </div>
+            <div class="card-status">
+              <span class="status-dot" style="background:${status.color}"></span>
+              <span class="status-text" style="color:${sel ? (status.color === 'var(--green)' ? '#56e8a3' : 'rgba(255,255,255,0.7)') : status.color}">${status.label}</span>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    // ── Live tick ──────────────────────────────────────
+
+    function startTick() {
+      clearInterval(tickTimer);
+      tickTimer = setInterval(() => {
+        if (!lastFetch) return;
+        const s   = Math.round((Date.now() - lastFetch) / 1000);
+        const lbl = s < 60 ? `UPDATED ${s}S AGO` : `UPDATED ${Math.floor(s / 60)}M AGO`;
+        const el  = document.getElementById('updated-ago');
+        if (el) el.textContent = lbl;
+      }, 1000);
+    }
+
+    // ── Take in data (normalises string coords → numbers) ──
+
+    function ingest(raw) {
+      if (!Array.isArray(raw)) return;
+      carts = raw
+        .filter(c => c && c.coords)
+        .map(c => Object.assign({}, c, {
+          coords: { lat: parseFloat(c.coords.lat), long: parseFloat(c.coords.long) }
+        }))
+        .filter(c => isFinite(c.coords.lat) && isFinite(c.coords.long));
+      lastFetch = Date.now();
+      updateMarkers();
+      renderSidebar();
+      if (!initialFit && carts.length) { fitAll(); initialFit = true; }
+    }
+
+    // Data pushed from the Wix page (or any parent frame)
+    function onMessage(e) {
+      const d = e.data || {};
+      if (d.type === 'carts') { gotData = true; ingest(d.carts); }
+      else if (d.type === 'me' && d.lat != null) {
+        userPos = { lat: parseFloat(d.lat), lng: parseFloat(d.long) };
+        updateUserMarker(userPos.lat, userPos.lng);
+        renderSidebar();
+        if (!initialFit && carts.length) { fitAll(); initialFit = true; }
+      }
+    }
+
+    // Optional self-polling (only if you set API_URL)
+    async function fetchCarts() {
+      try {
+        const res = await fetch(API_URL, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        gotData = true;
+        ingest(Array.isArray(data) ? data : data.carts);
+      } catch (err) {
+        console.error('Cart fetch failed:', err);
+        document.getElementById('cart-list').innerHTML =
+          `<p class="state-msg">Could not load carts — ${err.message}</p>`;
+      }
+    }
+
+    // Demo data so the embed isn't blank during setup
+    function loadDemoIfIdle() {
+      if (gotData) return;
+      ingest([
+        { name: "Alex",   email: "alex@demo",   address: "S Brigantine Ave", battery: "50", coords: { lat: "39.3962", long: "-74.3850" }, updated: new Date().toISOString() },
+        { name: "Jordan", email: "jordan@demo", address: "Brigantine Blvd",  battery: "82", coords: { lat: "39.4089", long: "-74.3712" }, updated: new Date(Date.now() - 10*60000).toISOString() },
+        { name: "Sam",    email: "sam@demo",    address: "E Beach Ave",      battery: "30", coords: { lat: "39.4135", long: "-74.3588" }, updated: new Date(Date.now() - 40*60000).toISOString() }
+      ]);
+      if (!userPos) {
+        userPos = { lat: 39.4101, lng: -74.3646 };
+        updateUserMarker(userPos.lat, userPos.lng);
+        renderSidebar();
+      }
+    }
+
+    // ── Boot ───────────────────────────────────────────
+
+    function init() {
+      initMap();
+      startTick();
+
+      window.addEventListener('message', onMessage);
+
+      // Fallback geolocation — usually blocked inside a Wix embed,
+      // so prefer pushing { type:'me' } from the page (see setup notes).
+      if (navigator.geolocation) {
+        navigator.geolocation.watchPosition(
+          (pos) => {
+            userPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            updateUserMarker(userPos.lat, userPos.lng);
+            renderSidebar();
+          },
+          (err) => console.warn('Geolocation:', err.message),
+          { enableHighAccuracy: true, maximumAge: 10_000 }
+        );
+      }
+
+      if (API_URL) { fetchCarts(); setInterval(fetchCarts, REFRESH_MS); }
+
+      // Tell the Wix page we're ready to receive data
+      try { if (window.parent !== window) window.parent.postMessage({ type: 'ready' }, '*'); } catch (e) {}
+
+      if (DEMO_IF_IDLE) setTimeout(loadDemoIfIdle, 1500);
+    }
+
+    init();
+  </script>
+</body>
+</html>
