@@ -1,0 +1,16 @@
+{
+  "name": "square-clock-express",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Square clock-in tracker (webhook + live current-shifts API) on Express.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
